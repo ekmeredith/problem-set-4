@@ -1,6 +1,6 @@
 ---
 title: "Problem set 4"
-author: "Your name here"
+author: "Emily Meredith"
 date: "`r Sys.Date()`"
 ---
 
@@ -24,7 +24,12 @@ data/hg19.chr1.fa.gz
 ```
 
 First build a bowtie2 index with `bowtie2-build` and use `bowtie2` and `samtools` to align the reads to the index.
+```bash
+$ gunzip hg19.chr1.fa.gz 
 
+$ bowtie2-build hg19.chr1.fa hg19.chr1
+$ bowtie2 -x hg19.chr1 -U factorx.chr1.fq.gz | samtools sort -o factorx.sort.bam
+```
 **The output of the alignment step is a sorted BAM file.**
 
 ### Create bedGraph
@@ -33,11 +38,20 @@ Create a bedGraph file from the sorted BAM files. Use the
 `bedGraphToBigWig` utility and the `hg19.chrom.size` file in the `data/`
 directory.
 
+```bash
+$ bedtools genomecov -ibam factorx.sort.bam -g hg19.chrom.sizes -bg >factorx.bg
+$ bedGraphToBigWig factorx.bg hg19.chrom.sizes factorx.bw
+```
+
 ### Create a track in the UCSC browser
 
 1. Create a branch in your forked repository called `gh-pages`:
 
+I moved the files I wanted to be publicily available to my webstuff folder and then added to git as follows:
+
 ```bash
+$ git add .
+$ git commit -m 'bw file'
 $ git branch gh-pages
 $ git push origin gh-pages
 ```
@@ -46,34 +60,42 @@ $ git push origin gh-pages
 your trackline should look something like this (all on one line):
 
 ```
-track type=bedGraph bigDataUrl="http://<username>.github.io/<repo name>/path/to/bw color=255,0,0 visiblity=full name='chip data' description='chip description'
+track type=bigWig bigDataUrl="http://ekmeredith.github.io/webstuff/factorx.bw" color=255,0,0 visibility=full name="emily's ctcf data" description="ctcf"
+
 ```
+[Link to the UCSC session](https://genome.ucsc.edu/cgi-bin/hgTracks?hgS_doOtherUser=submit&hgS_otherUserName=ekmeredith&hgS_otherUserSessionName=ctcf) 
 
 ### Peak calling
 
 Call peaks from the bedGraph data using MACS2.
 
 ```bash
-$ macs2 callpeak -t <BAM file>
+$ macs2 callpeak -t factorx.sort.bam -g hs -n factorx -q 0.001 -f BAM
+$ bedtools slop -i factorx_summits.bed \
+   -g /Users/eknouf/Desktop/class/data-sets/genome/hg19.genome \
+   -b 20 > 20summits.bed
 ```
 
 
 ### Generate motifs from the peak calls
 
 1. Use these peak calls to collect FASTA sequences with `bedtools getfasta`.
+```bash
+$ bedtools getfasta -fi hg19.chr1.fa -bed  20summits.bed -fo out.fa
+```
 
 1. Derive motifs from the FASTA sequences with `meme`.
 
 ```bash
 # if you get an error about "max size" add -maxsize 1000000
-$ meme <FASTA file> -nmotifs 1 -maxw 20 -minw 8 -dna 
+meme out.fa -maxsize 1000000 -nmotifs 1 -maxw 20 -minw 8 -dna
 ```
 
 1. Extract the motif from the `meme.txt` output and use TOMTOM to identify
 the motif match. You can use the `meme-get-motif` to extract the first motif from the file:
 
-```bash
-meme-get-motif -id 1 < meme.txt
-```
-
 Copy the numeric matrix into the the search box on the tomtom site and report which motif it matches.
+
+### The best match is to CTCF with a p-value of 2.75e-08. 
+Here is the motif comparison:
+ ![motif](http://ekmeredith.github.io/webstuff/motif.png) 
